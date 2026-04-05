@@ -23,7 +23,7 @@ import {
 const { msbuildPath, llvmPdbutilPath } = detectVisualStudio2026();
 const slnPath = join("vs2022", "SumatraPDF.sln");
 
-const pdbFiles = ["SumatraPDF.pdb"];
+const pdbFiles = ["SumatraPDF.pdb", "PdfFilter2.pdb", "PdfPreview2.pdb"];
 
 // === Secrets ===
 
@@ -354,6 +354,8 @@ async function buildSmoke(): Promise<void> {
     [
       "SumatraPDF.pdb.lzsa",
       "SumatraPDF.pdb:SumatraPDF.pdb",
+      "PdfFilter2.pdb:PdfFilter2.pdb",
+      "PdfPreview2.pdb:PdfPreview2.pdb",
     ],
     outDir,
   );
