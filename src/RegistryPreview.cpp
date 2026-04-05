@@ -135,18 +135,21 @@ static void UnregisterPreviewer(const char* clsid, const char* ext, const char* 
 }
 
 // we delete from HKLM and HKCU for compat with pre-3.4
-bool UninstallPreviewDll() {
+bool UninstallPreviewDll2() {
     HRESULT hr = S_OK;
-
     for (auto& prev : gPreviewers) {
         if (prev.skip) {
-            logf("UninstallPreviewDll: skipping '%s'\n", prev.ext);
+            logf("UninstallPreviewDll2: skipping '%s'\n", prev.ext);
             continue;
         }
         UnregisterPreviewer(prev.clsid, prev.ext, prev.ext2, &hr);
-        logf("UninstallPreviewDll: removed '%s'\n", prev.ext);
+        logf("UninstallPreviewDll2: removed '%s'\n", prev.ext);
     }
-    // also remove previous PdfPreview CLSIDs
+    return hr == S_OK ? true : false;
+}
+
+bool UninstallPreviewDll() {
+    HRESULT hr = S_OK;
     for (auto& prev : gPreviousPreviewers) {
         UnregisterPreviewer(prev.clsid, prev.ext, prev.ext2, &hr);
     }

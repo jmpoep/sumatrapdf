@@ -2052,8 +2052,8 @@ bool RegisterOrUnregisterServerDLL(const char* dllPath, bool install, const char
         return false;
     }
 
+    // TODO: still needed? We don't have libmupdf.dll anymore
     // make sure that the DLL can find any DLLs it depends on and
-    // which reside in the same directory (in this case: libmupdf.dll)
     if (DynSetDllDirectoryW) {
         TempStr dllDir = path::GetDirTemp(dllPath);
         TempWStr dllDirW = ToWStrTemp(dllDir);

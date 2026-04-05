@@ -21,5 +21,6 @@
 
 bool InstallPreviewDll(const char* dllPath, bool allUsers);
 bool UninstallPreviewDll();
+bool UninstallPreviewDll2();
 void DisablePreviewInstallExts(const char* cmdLine);
 bool IsPreviewInstalled();

@@ -21,4 +21,5 @@
 
 bool InstallSearchFilter(const char* dllPath, bool allUsers);
 bool UninstallSearchFilter();
+bool UninstallSearchFilter2();
 bool IsSearchFilterInstalled();

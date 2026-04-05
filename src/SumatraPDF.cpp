@@ -8273,22 +8273,12 @@ void GetProgramInfo(str::Str& s) {
     TempStr exePath = GetSelfExePathTemp();
     auto fileSizeExe = GetFileSizeAsStrTemp(exePath);
     s.AppendFmt("Exe: %s %s\r\n", exePath, fileSizeExe);
-    if (IsDllBuild()) {
-        // show the size of the dll so that we can verify it's the
-        // correct size for the given version
-        char* dir = path::GetDirTemp(exePath);
-        char* dllPath = path::JoinTemp(dir, "libmupdf.dll");
-        auto fileSizeDll = GetFileSizeAsStrTemp(dllPath);
-        s.AppendFmt("Dll: %s %s\r\n", dllPath, fileSizeDll);
-    }
     TempStr signer = GetExecutableSignerTemp(exePath);
     s.AppendFmt("Signer: %s\r\n", signer ? signer : "(not signed)");
     if (builtOn != nullptr) {
         s.AppendFmt("BuiltOn: %s\n", builtOn);
     }
-    const char* exeType = IsDllBuild() ? "dll" : "static";
     const char* instType = IsRunningInPortableMode() ? "portable" : "installed";
-    s.AppendFmt("ExeType: %s, %s\r\n", exeType, instType);
     s.AppendFmt("Ver: %s", currentVersion);
     if (gIsPreReleaseBuild) {
         s.AppendFmt(" pre-release");

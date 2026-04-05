@@ -125,6 +125,8 @@ char* GetExistingInstallationDir() {
     return nullptr;
 }
 
+/* Returns true, if a Registry entry indicates that this executable has been
+   created by an installer (and should be updated through an installer) */
 bool IsOurExeInstalled() {
     AutoFreeStr installedDir = GetExistingInstallationDir();
     if (!installedDir.Get()) {
@@ -243,7 +245,7 @@ void UninstallBrowserPlugin() {
     NotifyFailed(_TRA("Couldn't uninstall browser plugin"));
 }
 
-constexpr const char* kSearchFilterDllName = "PdfFilter.dll";
+constexpr const char* kSearchFilterDllName = "PdfFilter2.dll";
 
 void RegisterSearchFilter(bool allUsers, const char* installDir) {
     char* dllPath = GetInstallationFilePathTemp(installDir, kSearchFilterDllName);
@@ -258,9 +260,17 @@ void RegisterSearchFilter(bool allUsers, const char* installDir) {
 }
 
 void UnRegisterSearchFilter() {
+    bool ok = true;
     char* dllPath = GetExistingInstallationFilePathTemp(kSearchFilterDllName);
-    logf("UnRegisterSearchFilter() dllPath=%s\n", dllPath);
-    bool ok = UninstallSearchFilter();
+    if (file::Exists(dllPath)) {
+        logf("UnRegisterSearchFilter() unregistering %s\n", kSearchFilterDllName);
+        ok &= UninstallSearchFilter2();
+    }
+    char* prevDllPath = GetExistingInstallationFilePathTemp("PdfFilter.dll");
+    if (file::Exists(prevDllPath)) {
+        logf("UnRegisterSearchFilter() unregistering PdfFilter.dll\n");
+        ok &= UninstallSearchFilter();
+    }
     if (ok) {
         log("  did unregister\n");
         return;
@@ -269,7 +279,7 @@ void UnRegisterSearchFilter() {
     NotifyFailed(_TRA("Couldn't uninstall Sumatra search filter"));
 }
 
-constexpr const char* kPreviewDllName = "PdfPreview.dll";
+constexpr const char* kPreviewDllName = "PdfPreview2.dll";
 
 void RegisterPreviewer(bool allUsers, const char* installDir) {
     char* dllPath = GetInstallationFilePathTemp(installDir, kPreviewDllName);
@@ -284,9 +294,17 @@ void RegisterPreviewer(bool allUsers, const char* installDir) {
 }
 
 void UnRegisterPreviewer() {
+    bool ok = true;
     char* dllPath = GetExistingInstallationFilePathTemp(kPreviewDllName);
-    logf("UnRegisterPreviewer() dllPath=%s\n", dllPath);
-    bool ok = UninstallPreviewDll();
+    if (file::Exists(dllPath)) {
+        logf("UnRegisterPreviewer() unregistering %s\n", kPreviewDllName);
+        ok &= UninstallPreviewDll2();
+    }
+    char* prevDllPath = GetExistingInstallationFilePathTemp("PdfPreview.dll");
+    if (file::Exists(prevDllPath)) {
+        logf("UnRegisterPreviewer() unregistering PdfPreview.dll\n");
+        ok &= UninstallPreviewDll();
+    }
     if (ok) {
         log("  did unregister\n");
         return;
@@ -440,7 +458,7 @@ static bool KillProcessesUsingInstallation() {
 }
 
 // return names of processes that are running part of the installation
-// (i.e. have libmupdf.dll or npPdfViewer.dll loaded)
+// (i.e. have libmupdf.dll loaded)
 static void ProcessesUsingInstallation(StrVec& names) {
     log("ProcessesUsingInstallation()\n");
     AutoFreeStr dir = GetExistingInstallationDir();

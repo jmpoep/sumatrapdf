@@ -53,35 +53,38 @@ bool InstallSearchFilter(const char* dllPath, bool allUsers) {
     return true;
 }
 
-// Note: for compat with pre-3.4 removes HKLM and HKCU keys
-bool UninstallSearchFilter() {
+static bool UninstallSearchFilterKeys(const char* pdfClsid, const char* pdfHandler, const char* texClsid,
+                                      const char* texHandler, const char* epubClsid, const char* epubHandler) {
     const char* regKeys[] = {
-        // new PdfFilter2 keys
-        "Software\\Classes\\CLSID\\" kPdfFilter2Clsid,
-        "Software\\Classes\\CLSID\\" kPdfFilter2Handler,
-        "Software\\Classes\\CLSID\\" kTexFilter2Clsid,
-        "Software\\Classes\\CLSID\\" kTexFilter2Handler,
-        "Software\\Classes\\CLSID\\" kEpubFilter2Clsid,
-        "Software\\Classes\\CLSID\\" kEpubFilter2Handler,
+        pdfClsid, pdfHandler, texClsid, texHandler, epubClsid, epubHandler,
+    };
+    bool ok = true;
+    for (int i = 0; i < dimof(regKeys); i++) {
+        TempStr key = str::FormatTemp("Software\\Classes\\CLSID\\%s", regKeys[i]);
+        LoggedDeleteRegKey(HKEY_LOCAL_MACHINE, key);
+        ok &= LoggedDeleteRegKey(HKEY_CURRENT_USER, key);
+    }
+    const char* extKeys[] = {
         "Software\\Classes\\.pdf\\PersistentHandler",
         "Software\\Classes\\.tex\\PersistentHandler",
         "Software\\Classes\\.epub\\PersistentHandler",
-        // previous PdfFilter keys
-        "Software\\Classes\\CLSID\\" kPdfFilterClsid,
-        "Software\\Classes\\CLSID\\" kPdfFilterHandler,
-        "Software\\Classes\\CLSID\\" kTexFilterClsid,
-        "Software\\Classes\\CLSID\\" kTexFilterHandler,
-        "Software\\Classes\\CLSID\\" kEpubFilterClsid,
-        "Software\\Classes\\CLSID\\" kEpubFilterHandler,
     };
-
-    bool ok = true;
-
-    for (int i = 0; i < dimof(regKeys); i++) {
-        LoggedDeleteRegKey(HKEY_LOCAL_MACHINE, regKeys[i]);
-        ok &= LoggedDeleteRegKey(HKEY_CURRENT_USER, regKeys[i]);
+    for (int i = 0; i < dimof(extKeys); i++) {
+        LoggedDeleteRegKey(HKEY_LOCAL_MACHINE, extKeys[i]);
+        ok &= LoggedDeleteRegKey(HKEY_CURRENT_USER, extKeys[i]);
     }
     return ok;
+}
+
+// Note: for compat with pre-3.4 removes HKLM and HKCU keys
+bool UninstallSearchFilter2() {
+    return UninstallSearchFilterKeys(kPdfFilter2Clsid, kPdfFilter2Handler, kTexFilter2Clsid, kTexFilter2Handler,
+                                     kEpubFilter2Clsid, kEpubFilter2Handler);
+}
+
+bool UninstallSearchFilter() {
+    return UninstallSearchFilterKeys(kPdfFilterClsid, kPdfFilterHandler, kTexFilterClsid, kTexFilterHandler,
+                                     kEpubFilterClsid, kEpubFilterHandler);
 }
 
 bool IsSearchFilterInstalled() {

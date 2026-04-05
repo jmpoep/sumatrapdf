@@ -804,8 +804,6 @@ void InstallCrashHandler(const char* crashDumpPath, const char* crashFilePath, c
         return;
     }
 
-    isDllBuild = IsDllBuild();
-
     BuildSystemInfo();
     // at this point list of modules should be complete (except
     // dbghlp.dll which shouldn't be loaded yet)

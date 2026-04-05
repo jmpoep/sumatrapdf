@@ -18,28 +18,12 @@
 #include "SumatraConfig.h"
 #include "Translations.h"
 #include "Version.h"
+#include "Installer.h"
 #include "AppTools.h"
 
 bool NeedsWindowEmbeddingHacks();
 
 #include "utils/Log.h"
-
-/* Returns true, if a Registry entry indicates that this executable has been
-   created by an installer (and should be updated through an installer) */
-static bool HasBeenInstalled() {
-    // see GetDefaultInstallationDir() in Installer.cpp
-    TempStr regPathUninst = str::JoinTemp("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\", kAppName);
-    TempStr installedPath = LoggedReadRegStr2Temp(regPathUninst, "InstallLocation");
-    if (!installedPath) {
-        return false;
-    }
-
-    TempStr exePath = GetSelfExePathTemp();
-    if (!str::EndsWithI(installedPath, ".exe")) {
-        installedPath = path::JoinTemp(installedPath, path::GetBaseNameTemp(exePath));
-    }
-    return path::IsSame(installedPath, exePath);
-}
 
 static char* PathStripBaseName(char* path) {
     // base will either return path or a pointer inside path right after last "/"
@@ -91,7 +75,7 @@ bool IsRunningInPortableMode() {
         return false;
     }
 
-    if (HasBeenInstalled()) {
+    if (IsOurExeInstalled()) {
         return false;
     }
 
@@ -99,11 +83,6 @@ bool IsRunningInPortableMode() {
         sCacheIsPortable = 1;
     }
     return sCacheIsPortable != 0;
-}
-
-bool IsDllBuild() {
-    HRSRC resSrc = FindResourceW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(1), RT_RCDATA);
-    return resSrc != nullptr;
 }
 
 static char* gAppDataDir = nullptr;

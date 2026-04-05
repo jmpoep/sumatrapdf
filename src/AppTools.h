@@ -26,7 +26,6 @@ struct TextEditor {
 };
 
 bool IsRunningInPortableMode();
-bool IsDllBuild();
 
 void DeleteAppTools();
 

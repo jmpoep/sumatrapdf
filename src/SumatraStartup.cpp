@@ -628,99 +628,6 @@ static bool HasDataResource(int id) {
     return resSrc != nullptr;
 }
 
-static bool ExeHasInstallerResources() {
-    return HasDataResource(IDR_DLL_PAK);
-}
-
-static bool IsInstallerAndNamedAsSuch() {
-    if (!ExeHasInstallerResources()) {
-        return false;
-    }
-    return ExeHasNameOfInstaller();
-}
-
-static bool IsInstallerButNotInstalled() {
-    if (!ExeHasInstallerResources()) {
-        return false;
-    }
-    return !IsOurExeInstalled();
-}
-
-// we delay load libmupdf.dll but it seems in some cases it fails to load
-// as seen in crash reports
-// here I'm trying to explicitly LoadLibrary() to hopefully fix that
-// if not, at least I can add logging to figure out why it fails
-constexpr int kBtnIdLearnMore = 100;
-constexpr const char* kFailedToLoadURL = "https://www.sumatrapdfreader.org/docs/Failed-to-load-libmpdf";
-
-static HRESULT CALLBACK LoadLibmupdfDialogCallback(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
-                                                   LONG_PTR lpRefData) {
-    switch (msg) {
-        case TDN_HYPERLINK_CLICKED: {
-            WCHAR* s = (WCHAR*)lParam;
-            LaunchBrowser(ToUtf8Temp(s));
-            break;
-        }
-        case TDN_BUTTON_CLICKED:
-            if ((int)wParam == kBtnIdLearnMore) {
-                LaunchBrowser(kFailedToLoadURL);
-                return S_FALSE; // don't close the dialog
-            }
-            break;
-    }
-    return S_OK;
-}
-
-static bool LoadLibmupdf() {
-    if (!ExeHasInstallerResources()) {
-        // this is not a version that needs libmupdf.dll
-        return true;
-    }
-    TempStr path = GetPathInExeDirTemp("libmupdf.dll");
-    HMODULE hm = LoadLibraryW(ToWStrTemp(path));
-    if (hm) return true;
-    logf("LoadLibmupdf: failed to load %s\n", path);
-    DWORD err = GetLastError();
-    logf("last err: 0x%x\n", (int)err);
-    TempStr errStr = nullptr;
-    if (err != 0) {
-        errStr = GetLastErrorStrTemp(err);
-        logf("error string: %s\n", errStr ? errStr : "(none)");
-    }
-    ReportIfFast(true);
-
-    TempStr msg = str::FormatTemp(
-        "SumatraPDF.exe failed to load libmupdf.dll.\nError code: %d\nError message: %s\n"
-        "We can't proceed.\n"
-        "For more information see <a href=\"%s\">SumatraPDF docs</a>.",
-        (int)err, errStr ? errStr : "unknown", kFailedToLoadURL);
-
-    TASKDIALOG_BUTTON buttons[2];
-    buttons[0].nButtonID = IDOK;
-    buttons[0].pszButtonText = L"Ok";
-    buttons[1].nButtonID = kBtnIdLearnMore;
-    buttons[1].pszButtonText = L"Learn more";
-
-    TASKDIALOGCONFIG dialogConfig{};
-    DWORD flags = TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_ENABLE_HYPERLINKS;
-    if (trans::IsCurrLangRtl()) {
-        flags |= TDF_RTL_LAYOUT;
-    }
-    dialogConfig.cbSize = sizeof(TASKDIALOGCONFIG);
-    dialogConfig.pszWindowTitle = L"SumatraPDF";
-    dialogConfig.pszMainInstruction = L"Failed to load libmupdf.dll";
-    dialogConfig.pszContent = ToWStrTemp(msg);
-    dialogConfig.nDefaultButton = IDOK;
-    dialogConfig.dwFlags = flags;
-    dialogConfig.pfCallback = LoadLibmupdfDialogCallback;
-    dialogConfig.pButtons = buttons;
-    dialogConfig.cButtons = 2;
-    dialogConfig.pszMainIcon = TD_ERROR_ICON;
-
-    TaskDialogIndirect(&dialogConfig, nullptr, nullptr, nullptr);
-    return false;
-}
-
 // TODO: maybe could set font on TDN_CREATED to Consolas, to better show the message
 static HRESULT CALLBACK TaskdialogHandleLinkscallback(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
                                                       LONG_PTR lpRefData) {
@@ -731,74 +638,6 @@ static HRESULT CALLBACK TaskdialogHandleLinkscallback(HWND hwnd, UINT msg, WPARA
             break;
     }
     return S_OK;
-}
-
-// in Installer.cpp
-u32 GetLibmupdfDllSize();
-
-// a single exe is both an installer and the app (if libmupdf.dll has been extracted)
-// if we don't find libmupdf.dll alongside us, we assume this is installer
-// if libmupdf.dll is present but different that ours, it's a damaged installation
-static bool ForceRunningAsInstaller() {
-    if (!ExeHasInstallerResources()) {
-        // this is not a version that needs libmupdf.dll
-        return false;
-    }
-
-    u32 expectedSize = GetLibmupdfDllSize();
-    ReportIf(0 == expectedSize);
-    if (0 == expectedSize) {
-        // shouldn't happen
-        return false;
-    }
-
-    TempStr dir = GetSelfExeDirTemp();
-    TempStr path = path::JoinTemp(dir, "libmupdf.dll");
-    auto realSize = file::GetSize(path);
-    if (realSize < 0) {
-        return true;
-    }
-    if (realSize == (i64)expectedSize) {
-        return false;
-    }
-
-    constexpr const char* corruptedInstallationConsole = R"(
-Looks like corrupted installation of SumatraPDF.
-
-Learn more at https://www.sumatrapdfreader.org/docs/Corrupted-installation
-)";
-    constexpr const char* corruptedInstallation =
-        R"(Looks like corrupted installation of SumatraPDF.
-)";
-    bool ok = RedirectIOToExistingConsole();
-    if (ok) {
-        // if we're launched from console, print help to consle window
-        printf("%s", corruptedInstallationConsole);
-    }
-
-    auto title = L"SumatraPDF installer";
-    TASKDIALOGCONFIG dialogConfig{};
-
-    DWORD flags =
-        TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT | TDF_ENABLE_HYPERLINKS | TDF_POSITION_RELATIVE_TO_WINDOW;
-    if (trans::IsCurrLangRtl()) {
-        flags |= TDF_RTL_LAYOUT;
-    }
-    dialogConfig.cbSize = sizeof(TASKDIALOGCONFIG);
-    dialogConfig.pszWindowTitle = title;
-    dialogConfig.pszMainInstruction = ToWStrTemp(corruptedInstallation);
-    dialogConfig.pszContent =
-        LR"(Learn more at <a href="https://www.sumatrapdfreader.org/docs/Corrupted-installation">www.sumatrapdfreader.org/docs/Corrupted-installation</a>.)";
-    dialogConfig.nDefaultButton = IDOK;
-    dialogConfig.dwFlags = flags;
-    dialogConfig.cxWidth = 0;
-    dialogConfig.pfCallback = TaskdialogHandleLinkscallback;
-    dialogConfig.dwCommonButtons = TDCBF_CLOSE_BUTTON;
-    dialogConfig.pszMainIcon = TD_ERROR_ICON;
-
-    auto hr = TaskDialogIndirect(&dialogConfig, nullptr, nullptr, nullptr);
-    HandleRedirectedConsoleOnShutdown();
-    ::ExitProcess(1);
 }
 
 constexpr const char* kInstallerHelpTmpl = R"(${appName} installer options:
@@ -876,8 +715,12 @@ static void supressThrowFromNew() {
     std::set_new_handler(stdNewHandler);
 }
 
-static void ShowNotValidInstallerError() {
-    MsgBox(nullptr, "Not a valid installer", "Error", MB_OK | MB_ICONERROR);
+static void VerifyHasPreviewAndSearchDlls() {
+    if (HasDataResource(IDR_DLL_PAK)) {
+        // TODO: more precise check
+        return;
+    }
+    MsgBox(nullptr, "Missing PdfFilter2.dll and PdfPreview2.dll", "Error", MB_OK | MB_ICONERROR);
 }
 
 static void ShowNoAdminErrorMessage() {
@@ -2257,6 +2100,8 @@ int APIENTRY WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE, _In_ LPST
         gLogToConsole = true;
     }
 
+    VerifyHasPreviewAndSearchDlls();
+
     Flags flags;
     if (ExeHasNameOfStoreInstaller()) {
         logf("Running store installer\n");
@@ -2269,7 +2114,7 @@ int APIENTRY WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE, _In_ LPST
 
     ParseFlags(GetCommandLineW(), flags);
     gCli = &flags;
-    bool isInstaller = flags.install || flags.runInstallNow || flags.fastInstall || IsInstallerAndNamedAsSuch();
+    bool isInstaller = flags.install || flags.runInstallNow || flags.fastInstall || ExeHasNameOfInstaller();
     bool isUninstaller = flags.uninstall;
     bool noLogHere = isInstaller || isUninstaller;
 
@@ -2350,7 +2195,7 @@ int APIENTRY WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE, _In_ LPST
     }
 #endif
 
-    if (flags.showHelp && IsInstallerButNotInstalled()) {
+    if (flags.showHelp && ExeHasNameOfInstaller()) {
         ShowInstallerHelp();
         HandleRedirectedConsoleOnShutdown();
         return 0;
@@ -2402,21 +2247,7 @@ int APIENTRY WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE, _In_ LPST
     }
 
     if (isInstaller) {
-        if (!ExeHasInstallerResources()) {
-            ShowNotValidInstallerError();
-            return 1;
-        }
         exitCode = RunInstaller();
-        // exit immediately. for some reason exit handlers try to
-        // pull in libmupdf.dll which we don't have access to in the installer
-        ::ExitProcess(exitCode);
-    }
-
-    if (ForceRunningAsInstaller()) {
-        logf("forcing running as an installer\n");
-        exitCode = RunInstaller();
-        // exit immediately. for some reason exit handlers try to
-        // pull in libmupdf.dll which we don't have access to in the installer
         ::ExitProcess(exitCode);
     }
 
@@ -2466,11 +2297,6 @@ int APIENTRY WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE, _In_ LPST
     // -x is one of options for poster tool, so we must run MaybeRunMutool() before this
     if (flags.justExtractFiles) {
         RedirectIOToExistingConsole();
-        if (!ExeHasInstallerResources()) {
-            log("this is not a SumatraPDF installer, -x option not available\n");
-            HandleRedirectedConsoleOnShutdown();
-            return 1;
-        }
         exitCode = 0;
         if (!ExtractInstallerFiles(gCli->installDir)) {
             log("failed to extract files");
@@ -2635,11 +2461,6 @@ ContinueOpenWindow:
         SHFILEINFOW sfi{};
         uint flg = SHGFI_SYSICONINDEX | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES;
         SHGetFileInfoW(L".pdf", 0, &sfi, sizeof(sfi), flg);
-    }
-
-    // below is code that might use libmupdf functions so try to load it eagerly
-    if (!LoadLibmupdf()) {
-        ::ExitProcess(1);
     }
 
     if (restoreSession) {

@@ -2815,7 +2815,7 @@ int mudraw_main(int argc, char **argv)
 	return (errored != 0);
 }
 
-/* SumatraPDF: this must be in libmupdf.dll */
+/* SumatraPDF: TODO: this no longer needs to be here (no more libmupdf.dll) */
 // https://www.tillett.info/2013/05/13/how-to-create-a-windows-program-that-works-as-both-as-a-gui-and-console-application/
 // TODO: see if https://github.com/apenwarr/fixconsole/blob/master/fixconsole_windows.go would improve things
 

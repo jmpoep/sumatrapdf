@@ -154,13 +154,12 @@ static UpdateInfo* ParseUpdateInfo(const char* d) {
 
     // figure out which executable to download
     const char* dlURL = nullptr;
-    bool isDll = IsDllBuild();
     if (IsArmBuild()) {
-        dlURL = isDll ? res->installerArm64 : res->portableArm64;
+        dlURL = res->installerArm64;
     } else if (IsProcess64()) {
-        dlURL = isDll ? res->installer64 : res->portable64;
+        dlURL = res->installer64;
     } else {
-        dlURL = isDll ? res->installer32 : res->portable32;
+        dlURL = res->installer32;
     }
     res->dlURL = str::Dup(dlURL);
     return res;

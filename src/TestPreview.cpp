@@ -22,7 +22,7 @@
 
 typedef HRESULT DllGetClassObjectFn(REFCLSID rclsid, REFIID riid, void** ppv);
 
-constexpr const char* kPdfPreviewDllName = "PdfPreview.dll";
+constexpr const char* kPdfPreviewDllName = "PdfPreview2.dll";
 
 void TestPreview(const WCHAR* cmdLine) {
     StrVec argList;
