@@ -815,6 +815,7 @@ function sumatrapdf_files()
     "regress/Regress.*",
     "Scratch.*",
     "TestPlugin.cpp",
+    "TestFilter.cpp",
     "TestPreview.cpp",
   })
   files_in_dir("src/testcode", {

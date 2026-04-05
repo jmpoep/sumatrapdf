@@ -2288,6 +2288,12 @@ int APIENTRY WinMain(_In_ HINSTANCE /*hInstance*/, _In_opt_ HINSTANCE, _In_ LPST
         TestPreview(GetCommandLineW());
         return 0;
     }
+    if (flags.testFilter) {
+        // in TestFilter.cpp
+        extern void TestFilter(const WCHAR* cmdLine);
+        TestFilter(GetCommandLineW());
+        return 0;
+    }
 #endif
 
     if (MaybeRunMutool() != kNoMutool) {

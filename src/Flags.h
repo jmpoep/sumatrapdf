@@ -89,6 +89,7 @@ struct Flags {
     bool testPlugin = false;
     bool testPreview = false;
     char* upgradeFrom = nullptr;
+    bool testFilter = false;
     char* dde = nullptr;
     bool engineDump = false; // -engine-dump
 

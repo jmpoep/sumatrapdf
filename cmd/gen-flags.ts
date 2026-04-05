@@ -84,6 +84,7 @@ const args = [
     "IFilterPipe", "ifilter-pipe",
     "TestPreviewPipe", "test-preview-pipe",
     "UpgradeFrom", "upgrade-from",
+    "TestFilter", "test-filter",
 ];
 
 function generateCode(): string {
