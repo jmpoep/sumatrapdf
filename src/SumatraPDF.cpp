@@ -6987,6 +6987,11 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             SaveSettings();
             break;
 
+        case CmdTogglePromo:
+            gGlobalPrefs->showPromo = !gGlobalPrefs->showPromo;
+            SaveSettings();
+            break;
+
         case CmdNavigateBack:
             if (ctrl) {
                 ctrl->Navigate(-1);
