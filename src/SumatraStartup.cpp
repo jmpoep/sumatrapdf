@@ -1793,8 +1793,10 @@ enum class IFilterFileType : u32 {
 };
 
 static EngineBase* CreateEngineFromDataForIFilter(const ByteSlice& data, IFilterFileType fileType) {
+    logf("CreateEngineFromDataForIFilter: fileType=%d, dataSize=%d\n", (int)fileType, (int)data.size());
     IStream* stream = CreateStreamFromData(data);
     if (!stream) {
+        logf("CreateEngineFromDataForIFilter: CreateStreamFromData failed\n");
         return nullptr;
     }
     EngineBase* engine = nullptr;
@@ -1806,9 +1808,15 @@ static EngineBase* CreateEngineFromDataForIFilter(const ByteSlice& data, IFilter
             engine = CreateEngineEpubFromStream(stream);
             break;
         default:
+            logf("CreateEngineFromDataForIFilter: unknown fileType %d\n", (int)fileType);
             break;
     }
     stream->Release();
+    if (engine) {
+        logf("CreateEngineFromDataForIFilter: engine created, pageCount=%d\n", engine->PageCount());
+    } else {
+        logf("CreateEngineFromDataForIFilter: engine creation failed\n");
+    }
     return engine;
 }
 
@@ -1887,7 +1895,8 @@ static void RunIFilterPipeServer(const char* pipeName) {
         return;
     }
 
-    logf("RunIFilterPipeServer: fileType=%d, dataSize=%d\n", fileType, dataSize);
+    const char* fileTypeName = (fileType == 1) ? "PDF" : (fileType == 2) ? "EPUB" : "unknown";
+    logf("RunIFilterPipeServer: fileType=%d (%s), dataSize=%d\n", fileType, fileTypeName, dataSize);
 
     // Sanity check
     if (dataSize == 0 || dataSize > 100 * 1024 * 1024) { // max 100MB
@@ -1953,21 +1962,25 @@ static void RunIFilterPipeServer(const char* pipeName) {
         for (int i = 1; i <= (int)pageCount; i++) {
             PageText pt = engine->ExtractPageText(i);
             if (pt.text && pt.len > 0) {
+                logf("RunIFilterPipeServer: page %d text len=%d chars\n", i, pt.len);
                 // Replace \n with \r\n for Windows
                 WCHAR* text = str::Replace(pt.text, L"\n", L"\r\n");
                 pageTexts.Append(text);
             } else {
+                logf("RunIFilterPipeServer: page %d no text\n", i);
                 pageTexts.Append(nullptr);
             }
             FreePageText(&pt);
         }
 
         engine->Release();
+        logf("RunIFilterPipeServer: text extraction done\n");
     }
 
     free(fileData);
 
     // Write response header: magic(4) + status(4) + pageCount(4) = 12 bytes
+    logf("RunIFilterPipeServer: writing response, status=%d, pageCount=%d\n", status, pageCount);
     DWORD bytesWritten = 0;
     u32 responseMagic = kIFilterResponseMagic;
     WriteFile(hPipe, &responseMagic, 4, &bytesWritten, nullptr);
@@ -1978,11 +1991,13 @@ static void RunIFilterPipeServer(const char* pipeName) {
     WriteLenPrefixedString(hPipe, author);
     WriteLenPrefixedString(hPipe, title);
     WriteLenPrefixedString(hPipe, date);
+    logf("RunIFilterPipeServer: wrote metadata\n");
 
     // Write page texts as length-prefixed UTF-16 strings
     for (int i = 0; i < (int)pageTexts.size(); i++) {
         WriteLenPrefixedWString(hPipe, pageTexts[i]);
     }
+    logf("RunIFilterPipeServer: wrote %d page texts\n", (int)pageTexts.size());
 
     // Cleanup
     str::Free(author);

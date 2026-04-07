@@ -92,6 +92,8 @@ static HANDLE LaunchSumatraForIFilter(const char* pipeName) {
 static bool SendIFilterRequest(HANDLE hPipe, IFilterFileType fileType, const ByteSlice& data) {
     DWORD bytesWritten = 0;
 
+    logf("SendIFilterRequest: fileType=%d, dataSize=%d\n", (int)fileType, (int)data.size());
+
     // Write header: magic(4) + version(4) + fileType(4) + dataSize(4) = 16 bytes
     u32 magic = kIFilterRequestMagic;
     u32 version = kIFilterProtocolVersion;
@@ -99,15 +101,19 @@ static bool SendIFilterRequest(HANDLE hPipe, IFilterFileType fileType, const Byt
     u32 dataSize = (u32)data.size();
 
     if (!WriteFile(hPipe, &magic, 4, &bytesWritten, nullptr) || bytesWritten != 4) {
+        logf("SendIFilterRequest: failed to write magic\n");
         return false;
     }
     if (!WriteFile(hPipe, &version, 4, &bytesWritten, nullptr) || bytesWritten != 4) {
+        logf("SendIFilterRequest: failed to write version\n");
         return false;
     }
     if (!WriteFile(hPipe, &ft, 4, &bytesWritten, nullptr) || bytesWritten != 4) {
+        logf("SendIFilterRequest: failed to write fileType\n");
         return false;
     }
     if (!WriteFile(hPipe, &dataSize, 4, &bytesWritten, nullptr) || bytesWritten != 4) {
+        logf("SendIFilterRequest: failed to write dataSize\n");
         return false;
     }
 
@@ -116,12 +122,14 @@ static bool SendIFilterRequest(HANDLE hPipe, IFilterFileType fileType, const Byt
     while (totalWritten < dataSize) {
         DWORD toWrite = dataSize - totalWritten;
         if (!WriteFile(hPipe, data.data() + totalWritten, toWrite, &bytesWritten, nullptr) || bytesWritten == 0) {
+            logf("SendIFilterRequest: failed to write file data at offset %d\n", totalWritten);
             return false;
         }
         totalWritten += bytesWritten;
     }
 
     FlushFileBuffers(hPipe);
+    logf("SendIFilterRequest: sent %d bytes of file data\n", totalWritten);
     return true;
 }
 
@@ -223,10 +231,18 @@ static IFilterExtractedData* ReceiveIFilterResponse(HANDLE hPipe) {
         if (data->pageTexts) {
             for (u32 i = 0; i < pageCount; i++) {
                 data->pageTexts[i] = ReadLenPrefixedWString(hPipe);
+                if (data->pageTexts[i]) {
+                    logf("ReceiveIFilterResponse: page %d text len=%d\n", (int)i + 1, (int)wcslen(data->pageTexts[i]));
+                } else {
+                    logf("ReceiveIFilterResponse: page %d text is null\n", (int)i + 1);
+                }
             }
+        } else {
+            logf("ReceiveIFilterResponse: failed to allocate pageTexts array\n");
         }
     }
 
+    logf("ReceiveIFilterResponse: done, pageCount=%d\n", (int)pageCount);
     return data;
 }
 
@@ -339,17 +355,21 @@ HRESULT PdfFilter::OnInit() {
     HRESULT res;
     ByteSlice data = GetDataFromStream(m_pStream, &res);
     if (data.empty()) {
+        logf("PdfFilter::OnInit: GetDataFromStream failed, hr=0x%08x\n", (int)res);
         return res;
     }
+    logf("PdfFilter::OnInit: got %d bytes from stream\n", (int)data.size());
 
     // Extract data via pipe communication with SumatraPDF.exe
     m_extractedData = ExtractDataViaPipe(IFilterFileType::PDF, data);
     data.Free();
 
     if (!m_extractedData) {
+        logf("PdfFilter::OnInit: ExtractDataViaPipe failed\n");
         return E_FAIL;
     }
 
+    logf("PdfFilter::OnInit: success, pageCount=%d\n", m_extractedData->pageCount);
     m_state = PdfFilterState::Start;
     m_iPageNo = 0;
     return S_OK;
