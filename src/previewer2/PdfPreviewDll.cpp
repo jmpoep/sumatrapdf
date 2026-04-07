@@ -18,6 +18,21 @@ constexpr COLORREF kColWindowBg = RGB(0x99, 0x99, 0x99);
 constexpr int kPreviewMargin = 2;
 constexpr UINT kUwmPaintAgain = (WM_USER + 101);
 
+static void LogToDebugFile(const char* msg) {
+    // write to a temp file so we can see logs from prevhost.exe
+    // which doesn't connect to logview's named pipe
+    char path[MAX_PATH]{};
+    GetTempPathA(MAX_PATH, path);
+    strcat_s(path, MAX_PATH, "sumatrapdf-preview2-debug.txt");
+    HANDLE hFile = CreateFileA(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS,
+                               FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (hFile != INVALID_HANDLE_VALUE) {
+        DWORD written;
+        WriteFile(hFile, msg, (DWORD)strlen(msg), &written, nullptr);
+        CloseHandle(hFile);
+    }
+}
+
 class PageRenderer;
 
 class PdfPreview : public IThumbnailProvider,
@@ -99,6 +114,7 @@ class PdfPreview : public IThumbnailProvider,
     // IPreviewHandler
     IFACEMETHODIMP SetWindow(HWND hwnd, const RECT* prc) {
         logf("PdfPreview::SetWindow(hwnd=%p)\n", hwnd);
+        LogToDebugFile("PdfPreview2: SetWindow()\n");
         if (!hwnd || !prc) {
             return S_OK;
         }
@@ -700,6 +716,7 @@ static LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
 
 IFACEMETHODIMP PdfPreview::DoPreview() {
     log("PdfPreview::DoPreview()\n");
+    LogToDebugFile("PdfPreview2: DoPreview()\n");
 
     WNDCLASSEX wcex{};
     wcex.cbSize = sizeof(wcex);
@@ -781,6 +798,7 @@ class PreviewClassFactory : public IClassFactory {
     // IClassFactory
     IFACEMETHODIMP CreateInstance(IUnknown* punkOuter, REFIID riid, void** ppv) {
         log("PdfPreview: CreateInstance()\n");
+        LogToDebugFile("PdfPreview2: CreateInstance()\n");
 
         *ppv = nullptr;
         if (punkOuter) {
@@ -852,6 +870,11 @@ STDAPI_(BOOL) DllMain(HINSTANCE hInstance, DWORD dwReason, void*) {
     }
     gLogAppName = "PdfPreview";
     logf("PdfPreview: DllMain %s (pid=%d)\n", GetReason(dwReason), (int)GetCurrentProcessId());
+
+    // also log to a temp file for debugging prevhost.exe loads
+    char buf[256];
+    wsprintfA(buf, "PdfPreview2: DllMain %s (pid=%d)\n", GetReason(dwReason), (int)GetCurrentProcessId());
+    LogToDebugFile(buf);
     return TRUE;
 }
 
