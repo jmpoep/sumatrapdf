@@ -35,13 +35,18 @@ static void LogToDebugFile(const char* msg) {
 
 class PageRenderer;
 
+enum class PreviewMode {
+    Thumbnail,
+    Preview
+};
+
 class PdfPreview : public IThumbnailProvider,
                    public IInitializeWithStream,
                    public IObjectWithSite,
                    public IPreviewHandler,
                    public IOleWindow {
   public:
-    PdfPreview(long* plRefCount, PreviewFileType fileType) : m_fileType(fileType) {
+    PdfPreview(long* plRefCount, PreviewFileType fileType, PreviewMode mode) : m_fileType(fileType), m_mode(mode) {
         m_plModuleRef = plRefCount;
         InterlockedIncrement(m_plModuleRef);
         m_gdiScope = new ScopedGdiPlus();
@@ -55,18 +60,16 @@ class PdfPreview : public IThumbnailProvider,
 
     // IUnknown
     IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) {
-        static const QITAB qit[] = {QITABENT(PdfPreview, IInitializeWithStream),
-                                    QITABENT(PdfPreview, IThumbnailProvider),
-                                    QITABENT(PdfPreview, IObjectWithSite),
-                                    QITABENT(PdfPreview, IPreviewHandler),
-                                    QITABENT(PdfPreview, IOleWindow),
-                                    {0}};
-        HRESULT hr = QISearch(this, qit, riid, ppv);
-        LPOLESTR riidStr = nullptr;
-        StringFromIID(riid, &riidStr);
-        logf("PdfPreview::QueryInterface(%S) => 0x%08x\n", riidStr ? riidStr : L"?", (int)hr);
-        CoTaskMemFree(riidStr);
-        return hr;
+        // expose only the interfaces relevant to our mode
+        static const QITAB qitThumb[] = {
+            QITABENT(PdfPreview, IInitializeWithStream), QITABENT(PdfPreview, IThumbnailProvider), {0}};
+        static const QITAB qitPreview[] = {QITABENT(PdfPreview, IInitializeWithStream),
+                                           QITABENT(PdfPreview, IObjectWithSite),
+                                           QITABENT(PdfPreview, IPreviewHandler),
+                                           QITABENT(PdfPreview, IOleWindow),
+                                           {0}};
+        const QITAB* qit = (m_mode == PreviewMode::Thumbnail) ? qitThumb : qitPreview;
+        return QISearch(this, qit, riid, ppv);
     }
     IFACEMETHODIMP_(ULONG) AddRef() { return InterlockedIncrement(&m_lRef); }
     IFACEMETHODIMP_(ULONG) Release() {
@@ -204,6 +207,7 @@ class PdfPreview : public IThumbnailProvider,
     HWND m_hwndParent = nullptr;
     Rect m_rcParent;
     PreviewFileType m_fileType;
+    PreviewMode m_mode;
 
     HBITMAP GetThumbnailViaPipe(uint cx);
     bool InitPreviewSession();
@@ -806,28 +810,65 @@ class PreviewClassFactory : public IClassFactory {
         }
 
         PreviewFileType fileType;
+        PreviewMode mode;
+
+        // preview handler CLSIDs
         if (IsClsid(kPdfPreview2Clsid)) {
             fileType = PreviewFileType::PDF;
+            mode = PreviewMode::Preview;
         } else if (IsClsid(kXpsPreview2Clsid)) {
             fileType = PreviewFileType::XPS;
+            mode = PreviewMode::Preview;
         } else if (IsClsid(kDjVuPreview2Clsid)) {
             fileType = PreviewFileType::DjVu;
+            mode = PreviewMode::Preview;
         } else if (IsClsid(kEpubPreview2Clsid)) {
             fileType = PreviewFileType::EPUB;
+            mode = PreviewMode::Preview;
         } else if (IsClsid(kFb2Preview2Clsid)) {
             fileType = PreviewFileType::FB2;
+            mode = PreviewMode::Preview;
         } else if (IsClsid(kMobiPreview2Clsid)) {
             fileType = PreviewFileType::MOBI;
+            mode = PreviewMode::Preview;
         } else if (IsClsid(kCbxPreview2Clsid)) {
             fileType = PreviewFileType::CBX;
+            mode = PreviewMode::Preview;
         } else if (IsClsid(kTgaPreview2Clsid)) {
             fileType = PreviewFileType::TGA;
+            mode = PreviewMode::Preview;
+        }
+        // thumbnail provider CLSIDs
+        else if (IsClsid(kPdfThumb2Clsid)) {
+            fileType = PreviewFileType::PDF;
+            mode = PreviewMode::Thumbnail;
+        } else if (IsClsid(kXpsThumb2Clsid)) {
+            fileType = PreviewFileType::XPS;
+            mode = PreviewMode::Thumbnail;
+        } else if (IsClsid(kDjVuThumb2Clsid)) {
+            fileType = PreviewFileType::DjVu;
+            mode = PreviewMode::Thumbnail;
+        } else if (IsClsid(kEpubThumb2Clsid)) {
+            fileType = PreviewFileType::EPUB;
+            mode = PreviewMode::Thumbnail;
+        } else if (IsClsid(kFb2Thumb2Clsid)) {
+            fileType = PreviewFileType::FB2;
+            mode = PreviewMode::Thumbnail;
+        } else if (IsClsid(kMobiThumb2Clsid)) {
+            fileType = PreviewFileType::MOBI;
+            mode = PreviewMode::Thumbnail;
+        } else if (IsClsid(kCbxThumb2Clsid)) {
+            fileType = PreviewFileType::CBX;
+            mode = PreviewMode::Thumbnail;
+        } else if (IsClsid(kTgaThumb2Clsid)) {
+            fileType = PreviewFileType::TGA;
+            mode = PreviewMode::Thumbnail;
         } else {
             return E_NOINTERFACE;
         }
 
         ScopedComPtr<IInitializeWithStream> pObject;
-        pObject = new PdfPreview(&g_lRefCount, fileType);
+        pObject = new PdfPreview(&g_lRefCount, fileType, mode);
 
         if (!pObject) {
             return E_OUTOFMEMORY;

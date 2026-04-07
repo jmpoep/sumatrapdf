@@ -10,6 +10,7 @@
 #define kCbxPreviewClsid "{C29D3E2B-8FF6-4033-A4E8-54221D859D74}"
 #define kTgaPreviewClsid "{CB1D63A6-FE5E-4DED-BEA5-3F6AF1A70D08}"
 
+// Preview handler CLSIDs (IPreviewHandler)
 #define kPdfPreview2Clsid "{F0FE6374-D0B4-4751-AE36-C57B96999E87}"
 #define kXpsPreview2Clsid "{B055DBB8-B29D-4E86-8E69-C649CE044B35}"
 #define kDjVuPreview2Clsid "{DB0BCEC8-57CE-4D21-97B8-E1DE9B8510BF}"
@@ -18,6 +19,16 @@
 #define kMobiPreview2Clsid "{C21FF5DF-9AD7-43D8-A979-608C77CAC4AA}"
 #define kCbxPreview2Clsid "{886AD8B3-550D-4710-81B7-D5D422313B65}"
 #define kTgaPreview2Clsid "{A81391FC-C68F-4292-9ACC-F11F9484E95C}"
+
+// Thumbnail provider CLSIDs (IThumbnailProvider) - separate from preview to avoid Explorer confusion
+#define kPdfThumb2Clsid "{939AD615-AF47-4BE9-AFBC-497D87F6E3F5}"
+#define kXpsThumb2Clsid "{27DD6B96-3304-4F8B-BD11-BF5D2F287841}"
+#define kDjVuThumb2Clsid "{8289C669-9D43-48B1-998F-6F436822E433}"
+#define kEpubThumb2Clsid "{E85A8AB9-DCED-414F-A273-7A9A36F0396F}"
+#define kFb2Thumb2Clsid "{828BB6D4-D5A9-4D3C-8B2B-771501ABBC92}"
+#define kMobiThumb2Clsid "{5147A526-BA31-44E7-BC06-53CC4A0034BF}"
+#define kCbxThumb2Clsid "{B268E7B6-F8A9-4181-B133-943061C83CA7}"
+#define kTgaThumb2Clsid "{8F12A606-9623-4692-A7A7-58CB0111D371}"
 
 bool InstallPreviewDll(const char* dllPath, bool allUsers);
 bool UninstallPreviewDll();

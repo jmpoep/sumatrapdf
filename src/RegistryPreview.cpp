@@ -19,19 +19,20 @@
 
 // clang-format off
 static struct {
-    const char* clsid = nullptr;
+    const char* previewClsid = nullptr;
+    const char* thumbClsid = nullptr;
     const char *ext = nullptr, *ext2 = nullptr;
     bool skip = false;
 } gPreviewers[] = {
-    {kPdfPreview2Clsid, ".pdf"},
-    {kCbxPreview2Clsid, ".cbz", ".cbr"},
-    {kCbxPreview2Clsid, ".cb7", ".cbt"},
-    {kTgaPreview2Clsid, ".tga"},
-    {kDjVuPreview2Clsid, ".djvu"},
-    {kXpsPreview2Clsid, ".xps", ".oxps"},
-    {kEpubPreview2Clsid, ".epub"},
-    {kFb2Preview2Clsid, ".fb2", ".fb2z"},
-    {kMobiPreview2Clsid, ".mobi"},
+    {kPdfPreview2Clsid, kPdfThumb2Clsid, ".pdf"},
+    {kCbxPreview2Clsid, kCbxThumb2Clsid, ".cbz", ".cbr"},
+    {kCbxPreview2Clsid, kCbxThumb2Clsid, ".cb7", ".cbt"},
+    {kTgaPreview2Clsid, kTgaThumb2Clsid, ".tga"},
+    {kDjVuPreview2Clsid, kDjVuThumb2Clsid, ".djvu"},
+    {kXpsPreview2Clsid, kXpsThumb2Clsid, ".xps", ".oxps"},
+    {kEpubPreview2Clsid, kEpubThumb2Clsid, ".epub"},
+    {kFb2Preview2Clsid, kFb2Thumb2Clsid, ".fb2", ".fb2z"},
+    {kMobiPreview2Clsid, kMobiThumb2Clsid, ".mobi"},
 };
 
 // previous CLSIDs, for uninstall compat
@@ -59,35 +60,46 @@ bool InstallPreviewDll(const char* dllPath, bool allUsers) {
         if (prev.skip) {
             continue;
         }
-        const char* clsid = prev.clsid;
+        const char* previewClsid = prev.previewClsid;
+        const char* thumbClsid = prev.thumbClsid;
         const char* ext = prev.ext;
         const char* ext2 = prev.ext2;
         ok = true;
 
+        // register preview handler CLSID
         TempStr displayName = str::FormatTemp("SumatraPDF Preview (*%s)", ext);
-        // register class
-        TempStr key = str::FormatTemp("Software\\Classes\\CLSID\\%s", clsid);
+        TempStr key = str::FormatTemp("Software\\Classes\\CLSID\\%s", previewClsid);
         ok &= LoggedWriteRegStr(hkey, key, nullptr, displayName);
         ok &= LoggedWriteRegStr(hkey, key, "AppId", IsRunningInWow64() ? kAppIdPrevHostExeWow64 : kAppIdPrevHostExe);
         ok &= LoggedWriteRegStr(hkey, key, "DisplayName", displayName);
-        key = str::FormatTemp("Software\\Classes\\CLSID\\%s\\InProcServer32", clsid);
+        key = str::FormatTemp("Software\\Classes\\CLSID\\%s\\InProcServer32", previewClsid);
         ok &= LoggedWriteRegStr(hkey, key, nullptr, dllPath);
         ok &= LoggedWriteRegStr(hkey, key, "ThreadingModel", "Apartment");
-        // IThumbnailProvider
+
+        // register thumbnail provider CLSID
+        TempStr thumbDisplayName = str::FormatTemp("SumatraPDF Thumbnail (*%s)", ext);
+        key = str::FormatTemp("Software\\Classes\\CLSID\\%s", thumbClsid);
+        ok &= LoggedWriteRegStr(hkey, key, nullptr, thumbDisplayName);
+        ok &= LoggedWriteRegStr(hkey, key, "DisplayName", thumbDisplayName);
+        key = str::FormatTemp("Software\\Classes\\CLSID\\%s\\InProcServer32", thumbClsid);
+        ok &= LoggedWriteRegStr(hkey, key, nullptr, dllPath);
+        ok &= LoggedWriteRegStr(hkey, key, "ThreadingModel", "Apartment");
+
+        // register IThumbnailProvider with thumbnail CLSID
         key = str::FormatTemp("Software\\Classes\\%s\\shellex\\" kThumbnailProviderClsid, ext);
-        ok &= LoggedWriteRegStr(hkey, key, nullptr, clsid);
+        ok &= LoggedWriteRegStr(hkey, key, nullptr, thumbClsid);
         if (ext2) {
             key = str::FormatTemp("Software\\Classes\\%s\\shellex\\" kThumbnailProviderClsid, ext2);
-            ok &= LoggedWriteRegStr(hkey, key, nullptr, clsid);
+            ok &= LoggedWriteRegStr(hkey, key, nullptr, thumbClsid);
         }
-        // IPreviewHandler
+        // register IPreviewHandler with preview CLSID
         key = str::FormatTemp("Software\\Classes\\%s\\shellex\\" kPreviewHandlerClsid, ext);
-        ok &= LoggedWriteRegStr(hkey, key, nullptr, clsid);
+        ok &= LoggedWriteRegStr(hkey, key, nullptr, previewClsid);
         if (ext2) {
             key = str::FormatTemp("Software\\Classes\\%s\\shellex\\" kPreviewHandlerClsid, ext2);
-            ok &= LoggedWriteRegStr(hkey, key, nullptr, clsid);
+            ok &= LoggedWriteRegStr(hkey, key, nullptr, previewClsid);
         }
-        ok &= LoggedWriteRegStr(hkey, kRegKeyPreviewHandlers, clsid, displayName);
+        ok &= LoggedWriteRegStr(hkey, kRegKeyPreviewHandlers, previewClsid, displayName);
         if (!ok) {
             return false;
         }
@@ -103,14 +115,20 @@ static void DeleteOrFail(const char* key, HRESULT* hr) {
     }
 }
 
-static void UnregisterPreviewer(const char* clsid, const char* ext, const char* ext2, HRESULT* hr) {
+static void UnregisterPreviewer(const char* previewClsid, const char* thumbClsid, const char* ext, const char* ext2,
+                                HRESULT* hr) {
     TempStr key;
     // unregister preview handler
-    DeleteRegValue(HKEY_LOCAL_MACHINE, kRegKeyPreviewHandlers, clsid);
-    DeleteRegValue(HKEY_CURRENT_USER, kRegKeyPreviewHandlers, clsid);
-    // remove class data
-    key = str::FormatTemp("Software\\Classes\\CLSID\\%s", clsid);
+    DeleteRegValue(HKEY_LOCAL_MACHINE, kRegKeyPreviewHandlers, previewClsid);
+    DeleteRegValue(HKEY_CURRENT_USER, kRegKeyPreviewHandlers, previewClsid);
+    // remove preview class data
+    key = str::FormatTemp("Software\\Classes\\CLSID\\%s", previewClsid);
     DeleteOrFail(key, hr);
+    // remove thumbnail class data
+    if (thumbClsid) {
+        key = str::FormatTemp("Software\\Classes\\CLSID\\%s", thumbClsid);
+        DeleteOrFail(key, hr);
+    }
     // IThumbnailProvider
     key = str::FormatTemp("Software\\Classes\\%s\\shellex\\" kThumbnailProviderClsid, ext);
     DeleteOrFail(key, hr);
@@ -142,7 +160,7 @@ bool UninstallPreviewDll2() {
             logf("UninstallPreviewDll2: skipping '%s'\n", prev.ext);
             continue;
         }
-        UnregisterPreviewer(prev.clsid, prev.ext, prev.ext2, &hr);
+        UnregisterPreviewer(prev.previewClsid, prev.thumbClsid, prev.ext, prev.ext2, &hr);
         logf("UninstallPreviewDll2: removed '%s'\n", prev.ext);
     }
     return hr == S_OK ? true : false;
@@ -151,7 +169,7 @@ bool UninstallPreviewDll2() {
 bool UninstallPreviewDll() {
     HRESULT hr = S_OK;
     for (auto& prev : gPreviousPreviewers) {
-        UnregisterPreviewer(prev.clsid, prev.ext, prev.ext2, &hr);
+        UnregisterPreviewer(prev.clsid, nullptr, prev.ext, prev.ext2, &hr);
     }
     return hr == S_OK ? true : false;
 }
