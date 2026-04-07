@@ -937,8 +937,11 @@ static EngineBase* CreateEngineFromDataForPreview(const ByteSlice& data, Preview
 // Helper to render a page and extract bitmap data
 static u8* RenderPageToBitmap(EngineBase* engine, int pageNo, float zoom, u32* outWidth, u32* outHeight,
                               u32* outDataLen) {
-    RectF page = engine->Transform(engine->PageMediabox(pageNo), pageNo, 1.0, 0);
+    RectF mediabox = engine->PageMediabox(pageNo);
+    logf("RenderPageToBitmap: page %d, mediabox=%.1fx%.1f, zoom=%.3f\n", pageNo, mediabox.dx, mediabox.dy, zoom);
+    RectF page = engine->Transform(mediabox, pageNo, 1.0, 0);
     Rect target = RectF(0, 0, page.dx * zoom, page.dy * zoom).Round();
+    logf("RenderPageToBitmap: target=%dx%d\n", target.dx, target.dy);
 
     RectF pageRect = engine->Transform(ToRectF(target), pageNo, zoom, 0, true);
     RenderPageArgs args(pageNo, zoom, 0, &pageRect);
@@ -963,22 +966,35 @@ static u8* RenderPageToBitmap(EngineBase* engine, int pageNo, float zoom, u32* o
 
     u8* bmpData = AllocArray<u8>(bmpDataLen);
     if (!bmpData) {
+        logf("RenderPageToBitmap: failed to allocate %d bytes\n", bmpDataLen);
         delete bmp;
         return nullptr;
     }
 
     HDC hdc = GetDC(nullptr);
-    if (!GetDIBits(hdc, bmp->GetBitmap(), 0, height, bmpData, &bmi, DIB_RGB_COLORS)) {
+    int nLines = GetDIBits(hdc, bmp->GetBitmap(), 0, height, bmpData, &bmi, DIB_RGB_COLORS);
+    if (!nLines) {
+        logf("RenderPageToBitmap: GetDIBits failed, error=%d\n", (int)GetLastError());
         ReleaseDC(nullptr, hdc);
         free(bmpData);
         delete bmp;
         return nullptr;
     }
     ReleaseDC(nullptr, hdc);
+    logf("RenderPageToBitmap: GetDIBits returned %d lines\n", nLines);
 
     // Set alpha to 0xFF for each pixel
     for (u32 i = 0; i < width * height; i++) {
         bmpData[4 * i + 3] = 0xFF;
+    }
+
+    // Log sample pixels for debugging (corners and center)
+    if (bmpDataLen >= 4) {
+        u32 nPixels = width * height;
+        u32 mid = nPixels / 2 + width / 2;
+        logf("RenderPageToBitmap: pixel[0] BGRA=%02x%02x%02x%02x, pixel[mid] BGRA=%02x%02x%02x%02x\n", bmpData[0],
+             bmpData[1], bmpData[2], bmpData[3], bmpData[mid * 4], bmpData[mid * 4 + 1], bmpData[mid * 4 + 2],
+             bmpData[mid * 4 + 3]);
     }
 
     delete bmp;
@@ -986,6 +1002,7 @@ static u8* RenderPageToBitmap(EngineBase* engine, int pageNo, float zoom, u32* o
     *outWidth = width;
     *outHeight = height;
     *outDataLen = bmpDataLen;
+    logf("RenderPageToBitmap: success, %dx%d, %d bytes\n", width, height, bmpDataLen);
     return bmpData;
 }
 

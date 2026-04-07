@@ -212,6 +212,19 @@ HBITMAP ReceivePreviewResponse(HANDLE hPipe) {
 
     // Copy the bitmap data
     memcpy(dibData, bmpData, bmpDataLen);
+
+    // Log sample pixels for debugging
+    logf("ReceivePreviewResponse: pixel[0] BGRA=%02x%02x%02x%02x\n", dibData[0], dibData[1], dibData[2], dibData[3]);
+
+    // Verify HBITMAP properties
+    BITMAP bm{};
+    if (GetObject(hBitmap, sizeof(bm), &bm)) {
+        logf("ReceivePreviewResponse: HBITMAP info: %dx%d, bitsPixel=%d, planes=%d\n", bm.bmWidth, bm.bmHeight,
+             bm.bmBitsPixel, bm.bmPlanes);
+    } else {
+        logf("ReceivePreviewResponse: GetObject failed for HBITMAP\n");
+    }
+
     free(bmpData);
 
     return hBitmap;

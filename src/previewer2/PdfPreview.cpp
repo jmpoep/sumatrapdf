@@ -111,11 +111,21 @@ IFACEMETHODIMP PreviewBase::GetThumbnail(uint cx, HBITMAP* phbmp, WTS_ALPHATYPE*
         return E_FAIL;
     }
 
+    // Verify bitmap before returning to Explorer
+    BITMAP bm{};
+    if (GetObject(hBitmap, sizeof(bm), &bm)) {
+        logf("PreviewBase::GetThumbnail: returning HBITMAP %dx%d, bitsPixel=%d\n", bm.bmWidth, bm.bmHeight,
+             bm.bmBitsPixel);
+    }
+
     *phbmp = hBitmap;
     if (pdwAlpha) {
         *pdwAlpha = WTSAT_RGB;
+        logf("PreviewBase::GetThumbnail: set alpha type to WTSAT_RGB (%d)\n", (int)WTSAT_RGB);
+    } else {
+        logf("PreviewBase::GetThumbnail: pdwAlpha is null\n");
     }
-    logf("PreviewBase::GetThumbnail: provided thumbnail via pipe\n");
+    logf("PreviewBase::GetThumbnail: returning S_OK\n");
     return S_OK;
 }
 
