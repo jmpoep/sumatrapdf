@@ -6,11 +6,9 @@
 #include "utils/GdiPlusUtil.h"
 #include "utils/WinUtil.h"
 #include "utils/FileUtil.h"
-#include "mui/Mui.h"
 
 #include "RegistryPreview.h"
 
-// TODO: move code to PdfPreviewBase.cpp
 #include "PdfPreviewBase.h"
 
 #include "utils/Log.h"
@@ -19,7 +17,17 @@ constexpr COLORREF kColWindowBg = RGB(0x99, 0x99, 0x99);
 constexpr int kPreviewMargin = 2;
 constexpr UINT kUwmPaintAgain = (WM_USER + 101);
 
-HBITMAP PreviewBase::GetThumbnailViaPipe(uint cx) {
+PdfPreview::PdfPreview(long* plRefCount, PreviewFileType fileType) : m_fileType(fileType) {
+    m_plModuleRef = plRefCount;
+    InterlockedIncrement(m_plModuleRef);
+}
+
+PdfPreview::~PdfPreview() {
+    Unload();
+    InterlockedDecrement(m_plModuleRef);
+}
+
+HBITMAP PdfPreview::GetThumbnailViaPipe(uint cx) {
     logf("GetThumbnailViaPipe: cx=%d\n", cx);
 
     // Read stream data
@@ -101,36 +109,36 @@ cleanup:
     return result;
 }
 
-IFACEMETHODIMP PreviewBase::GetThumbnail(uint cx, HBITMAP* phbmp, WTS_ALPHATYPE* pdwAlpha) {
-    logf("PreviewBase::GetThumbnail(cx=%d)\n", (int)cx);
+IFACEMETHODIMP PdfPreview::GetThumbnail(uint cx, HBITMAP* phbmp, WTS_ALPHATYPE* pdwAlpha) {
+    logf("PdfPreview::GetThumbnail(cx=%d)\n", (int)cx);
 
     // Use pipe communication to SumatraPDF.exe for thumbnail generation
     HBITMAP hBitmap = GetThumbnailViaPipe(cx);
     if (!hBitmap) {
-        logf("PreviewBase::GetThumbnail: GetThumbnailViaPipe failed\n");
+        logf("PdfPreview::GetThumbnail: GetThumbnailViaPipe failed\n");
         return E_FAIL;
     }
 
     // Verify bitmap before returning to Explorer
     BITMAP bm{};
     if (GetObject(hBitmap, sizeof(bm), &bm)) {
-        logf("PreviewBase::GetThumbnail: returning HBITMAP %dx%d, bitsPixel=%d\n", bm.bmWidth, bm.bmHeight,
+        logf("PdfPreview::GetThumbnail: returning HBITMAP %dx%d, bitsPixel=%d\n", bm.bmWidth, bm.bmHeight,
              bm.bmBitsPixel);
     }
 
     *phbmp = hBitmap;
     if (pdwAlpha) {
         *pdwAlpha = WTSAT_RGB;
-        logf("PreviewBase::GetThumbnail: set alpha type to WTSAT_RGB (%d)\n", (int)WTSAT_RGB);
+        logf("PdfPreview::GetThumbnail: set alpha type to WTSAT_RGB (%d)\n", (int)WTSAT_RGB);
     } else {
-        logf("PreviewBase::GetThumbnail: pdwAlpha is null\n");
+        logf("PdfPreview::GetThumbnail: pdwAlpha is null\n");
     }
-    logf("PreviewBase::GetThumbnail: returning S_OK\n");
+    logf("PdfPreview::GetThumbnail: returning S_OK\n");
     return S_OK;
 }
 
 // Initialize a pipe session for version 2 protocol (session-based preview)
-bool PreviewBase::InitPreviewSession() {
+bool PdfPreview::InitPreviewSession() {
     logf("InitPreviewSession\n");
 
     // Read stream data
@@ -371,7 +379,7 @@ static LRESULT OnPaint(HWND hwnd) {
     RECT rcClient = ToRECT(rect);
     FillRect(hdc, &rcClient, brushBg);
 
-    PreviewBase* preview = (PreviewBase*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    PdfPreview* preview = (PdfPreview*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
     if (preview && preview->renderer) {
         int pageNo = GetScrollPos(hwnd, SB_VERT);
         RectF page = preview->renderer->GetPageRect(pageNo);
@@ -453,7 +461,7 @@ static LRESULT OnKeydown(HWND hwnd, WPARAM key) {
 }
 
 static LRESULT OnDestroy(HWND hwnd) {
-    PreviewBase* preview = (PreviewBase*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    PdfPreview* preview = (PdfPreview*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
     if (preview) {
         delete preview->renderer;
         preview->renderer = nullptr;
@@ -488,8 +496,8 @@ static LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
     }
 }
 
-IFACEMETHODIMP PreviewBase::DoPreview() {
-    log("PreviewBase::DoPreview()\n");
+IFACEMETHODIMP PdfPreview::DoPreview() {
+    log("PdfPreview::DoPreview()\n");
 
     WNDCLASSEX wcex{};
     wcex.cbSize = sizeof(wcex);
@@ -525,32 +533,4 @@ IFACEMETHODIMP PreviewBase::DoPreview() {
 
     ShowWindow(m_hwnd, SW_SHOW);
     return S_OK;
-}
-
-EpubPreview::EpubPreview(long* plRefCount) : PreviewBase(plRefCount, kEpubPreview2Clsid) {
-    log("EpubPreview::EpubPreview()\n");
-    m_gdiScope = new ScopedGdiPlus();
-    mui::Initialize();
-}
-
-EpubPreview::~EpubPreview() {
-    mui::Destroy();
-}
-
-Fb2Preview::Fb2Preview(long* plRefCount) : PreviewBase(plRefCount, kFb2Preview2Clsid) {
-    m_gdiScope = new ScopedGdiPlus();
-    mui::Initialize();
-}
-
-Fb2Preview::~Fb2Preview() {
-    mui::Destroy();
-}
-
-MobiPreview::MobiPreview(long* plRefCount) : PreviewBase(plRefCount, kMobiPreview2Clsid) {
-    m_gdiScope = new ScopedGdiPlus();
-    mui::Initialize();
-}
-
-MobiPreview::~MobiPreview() {
-    mui::Destroy();
 }

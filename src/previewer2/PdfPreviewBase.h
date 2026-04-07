@@ -7,30 +7,22 @@
 
 class PageRenderer;
 
-class PreviewBase : public IThumbnailProvider,
-                    public IInitializeWithStream,
-                    public IObjectWithSite,
-                    public IPreviewHandler,
-                    public IOleWindow {
+class PdfPreview : public IThumbnailProvider,
+                   public IInitializeWithStream,
+                   public IObjectWithSite,
+                   public IPreviewHandler,
+                   public IOleWindow {
   public:
-    PreviewBase(long* plRefCount, const char* clsid) {
-        m_plModuleRef = plRefCount;
-        InterlockedIncrement(m_plModuleRef);
-    }
-
-    virtual ~PreviewBase() {
-        Unload();
-        delete m_gdiScope;
-        InterlockedDecrement(m_plModuleRef);
-    }
+    PdfPreview(long* plRefCount, PreviewFileType fileType);
+    ~PdfPreview();
 
     // IUnknown
     IFACEMETHODIMP QueryInterface(REFIID riid, void** ppv) {
-        static const QITAB qit[] = {QITABENT(PreviewBase, IInitializeWithStream),
-                                    QITABENT(PreviewBase, IThumbnailProvider),
-                                    QITABENT(PreviewBase, IObjectWithSite),
-                                    QITABENT(PreviewBase, IPreviewHandler),
-                                    QITABENT(PreviewBase, IOleWindow),
+        static const QITAB qit[] = {QITABENT(PdfPreview, IInitializeWithStream),
+                                    QITABENT(PdfPreview, IThumbnailProvider),
+                                    QITABENT(PdfPreview, IObjectWithSite),
+                                    QITABENT(PdfPreview, IPreviewHandler),
+                                    QITABENT(PdfPreview, IOleWindow),
                                     {0}};
         return QISearch(this, qit, riid, ppv);
     }
@@ -151,90 +143,21 @@ class PreviewBase : public IThumbnailProvider,
     }
     IFACEMETHODIMP ContextSensitiveHelp(__unused BOOL fEnterMode) { return E_NOTIMPL; }
 
+    PreviewFileType GetFileType() { return m_fileType; }
+
     PageRenderer* renderer = nullptr;
     PreviewPipeSession* pipeSession = nullptr;
 
-  protected:
+  private:
     long m_lRef = 1;
     long* m_plModuleRef = nullptr;
     ScopedComPtr<IStream> m_pStream;
-    // engines based on EngineImages require GDI+ to be preloaded
-    ScopedGdiPlus* m_gdiScope = nullptr;
-    // state for IPreviewHandler
     ScopedComPtr<IUnknown> m_site;
     HWND m_hwnd = nullptr;
     HWND m_hwndParent = nullptr;
     Rect m_rcParent;
-
-    virtual PreviewFileType GetFileType() = 0;
+    PreviewFileType m_fileType;
 
     HBITMAP GetThumbnailViaPipe(uint cx);
     bool InitPreviewSession();
-};
-
-class PdfPreview : public PreviewBase {
-  public:
-    PdfPreview(long* plRefCount) : PreviewBase(plRefCount, kPdfPreview2Clsid) {}
-
-  protected:
-    PreviewFileType GetFileType() override { return PreviewFileType::PDF; }
-};
-
-class XpsPreview : public PreviewBase {
-  public:
-    XpsPreview(long* plRefCount) : PreviewBase(plRefCount, kXpsPreview2Clsid) {}
-
-  protected:
-    PreviewFileType GetFileType() override { return PreviewFileType::XPS; }
-};
-
-class DjVuPreview : public PreviewBase {
-  public:
-    DjVuPreview(long* plRefCount) : PreviewBase(plRefCount, kDjVuPreview2Clsid) { m_gdiScope = new ScopedGdiPlus(); }
-
-  protected:
-    PreviewFileType GetFileType() override { return PreviewFileType::DjVu; }
-};
-
-class EpubPreview : public PreviewBase {
-  public:
-    EpubPreview(long* plRefCount);
-    ~EpubPreview();
-
-  protected:
-    PreviewFileType GetFileType() override { return PreviewFileType::EPUB; }
-};
-
-class Fb2Preview : public PreviewBase {
-  public:
-    Fb2Preview(long* plRefCount);
-    ~Fb2Preview();
-
-  protected:
-    PreviewFileType GetFileType() override { return PreviewFileType::FB2; }
-};
-
-class MobiPreview : public PreviewBase {
-  public:
-    MobiPreview(long* plRefCount);
-    ~MobiPreview();
-
-  protected:
-    PreviewFileType GetFileType() override { return PreviewFileType::MOBI; }
-};
-
-class CbxPreview : public PreviewBase {
-  public:
-    CbxPreview(long* plRefCount) : PreviewBase(plRefCount, kCbxPreview2Clsid) { m_gdiScope = new ScopedGdiPlus(); }
-
-  protected:
-    PreviewFileType GetFileType() override { return PreviewFileType::CBX; }
-};
-
-class TgaPreview : public PreviewBase {
-  public:
-    TgaPreview(long* plRefCount) : PreviewBase(plRefCount, kTgaPreview2Clsid) { m_gdiScope = new ScopedGdiPlus(); }
-
-  protected:
-    PreviewFileType GetFileType() override { return PreviewFileType::TGA; }
 };

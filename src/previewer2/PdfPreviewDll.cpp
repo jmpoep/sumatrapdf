@@ -50,27 +50,29 @@ class PreviewClassFactory : public IClassFactory {
             return CLASS_E_NOAGGREGATION;
         }
 
-        ScopedComPtr<IInitializeWithStream> pObject;
-
+        PreviewFileType fileType;
         if (IsClsid(kPdfPreview2Clsid)) {
-            pObject = new PdfPreview(&g_lRefCount);
+            fileType = PreviewFileType::PDF;
         } else if (IsClsid(kXpsPreview2Clsid)) {
-            pObject = new XpsPreview(&g_lRefCount);
+            fileType = PreviewFileType::XPS;
         } else if (IsClsid(kDjVuPreview2Clsid)) {
-            pObject = new DjVuPreview(&g_lRefCount);
+            fileType = PreviewFileType::DjVu;
         } else if (IsClsid(kEpubPreview2Clsid)) {
-            pObject = new EpubPreview(&g_lRefCount);
+            fileType = PreviewFileType::EPUB;
         } else if (IsClsid(kFb2Preview2Clsid)) {
-            pObject = new Fb2Preview(&g_lRefCount);
+            fileType = PreviewFileType::FB2;
         } else if (IsClsid(kMobiPreview2Clsid)) {
-            pObject = new MobiPreview(&g_lRefCount);
+            fileType = PreviewFileType::MOBI;
         } else if (IsClsid(kCbxPreview2Clsid)) {
-            pObject = new CbxPreview(&g_lRefCount);
+            fileType = PreviewFileType::CBX;
         } else if (IsClsid(kTgaPreview2Clsid)) {
-            pObject = new TgaPreview(&g_lRefCount);
+            fileType = PreviewFileType::TGA;
         } else {
             return E_NOINTERFACE;
         }
+
+        ScopedComPtr<IInitializeWithStream> pObject;
+        pObject = new PdfPreview(&g_lRefCount, fileType);
 
         if (!pObject) {
             return E_OUTOFMEMORY;
