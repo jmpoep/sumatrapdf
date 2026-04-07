@@ -4,6 +4,7 @@
 #include "utils/BaseUtil.h"
 #include "utils/ScopedWin.h"
 #include "utils/FileUtil.h"
+#include "utils/GdiPlusUtil.h"
 #include "utils/WinUtil.h"
 
 #include <Thumbcache.h>
@@ -28,10 +29,12 @@ class PdfPreview : public IThumbnailProvider,
     PdfPreview(long* plRefCount, PreviewFileType fileType) : m_fileType(fileType) {
         m_plModuleRef = plRefCount;
         InterlockedIncrement(m_plModuleRef);
+        m_gdiScope = new ScopedGdiPlus();
     }
 
     ~PdfPreview() {
         Unload();
+        delete m_gdiScope;
         InterlockedDecrement(m_plModuleRef);
     }
 
@@ -43,7 +46,12 @@ class PdfPreview : public IThumbnailProvider,
                                     QITABENT(PdfPreview, IPreviewHandler),
                                     QITABENT(PdfPreview, IOleWindow),
                                     {0}};
-        return QISearch(this, qit, riid, ppv);
+        HRESULT hr = QISearch(this, qit, riid, ppv);
+        LPOLESTR riidStr = nullptr;
+        StringFromIID(riid, &riidStr);
+        logf("PdfPreview::QueryInterface(%S) => 0x%08x\n", riidStr ? riidStr : L"?", (int)hr);
+        CoTaskMemFree(riidStr);
+        return hr;
     }
     IFACEMETHODIMP_(ULONG) AddRef() { return InterlockedIncrement(&m_lRef); }
     IFACEMETHODIMP_(ULONG) Release() {
@@ -59,8 +67,10 @@ class PdfPreview : public IThumbnailProvider,
 
     // IInitializeWithStream
     IFACEMETHODIMP Initialize(IStream* pStm, __unused DWORD grfMode) {
+        logf("PdfPreview::Initialize(pStm=%p, grfMode=%d)\n", pStm, (int)grfMode);
         m_pStream = pStm;
         if (!m_pStream) {
+            log("PdfPreview::Initialize: pStm is null\n");
             return E_INVALIDARG;
         }
         m_pStream->AddRef();
@@ -88,6 +98,7 @@ class PdfPreview : public IThumbnailProvider,
 
     // IPreviewHandler
     IFACEMETHODIMP SetWindow(HWND hwnd, const RECT* prc) {
+        logf("PdfPreview::SetWindow(hwnd=%p)\n", hwnd);
         if (!hwnd || !prc) {
             return S_OK;
         }
@@ -171,6 +182,7 @@ class PdfPreview : public IThumbnailProvider,
     long m_lRef = 1;
     long* m_plModuleRef = nullptr;
     ScopedComPtr<IStream> m_pStream;
+    ScopedGdiPlus* m_gdiScope = nullptr;
     ScopedComPtr<IUnknown> m_site;
     HWND m_hwnd = nullptr;
     HWND m_hwndParent = nullptr;
@@ -839,7 +851,7 @@ STDAPI_(BOOL) DllMain(HINSTANCE hInstance, DWORD dwReason, void*) {
         ReportIf(hInstance != GetInstance());
     }
     gLogAppName = "PdfPreview";
-    logf("PdfPreview: DllMain %s\n", GetReason(dwReason));
+    logf("PdfPreview: DllMain %s (pid=%d)\n", GetReason(dwReason), (int)GetCurrentProcessId());
     return TRUE;
 }
 
